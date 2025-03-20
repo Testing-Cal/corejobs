@@ -43,7 +43,7 @@ jobs:
                         sudo yum update --skip-broken --setopt=protected_multilib=false -y
                         sudo chown -R ${USER}:${USER} /opt
                         mkdir -p /opt/models
-					"
+			"
           ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
                         sudo rm -rf /opt/conda 
                         wget -nv https://repo.anaconda.com/miniconda/Miniconda3-py311_24.9.2-0-Linux-x86_64.sh -O ~/miniconda.sh                 
@@ -53,13 +53,13 @@ jobs:
                         eval "$(/opt/conda/bin/conda shell.bash hook)"
                         conda init
                         rm ~/miniconda.sh
-					"
+			"
           ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
                         pip install jupyterlab==4.3.4
                         pip install jupyterlab_git==0.50.2
                         pip install plotly==5.24.1
                         pip install ipywidgets
-					"
+			"
           ssh -n -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "nohup jupyter lab --ip=* --NotebookApp.token=${TOKEN} --NotebookApp.base_url=${CONTEXT_PATH} --ServerApp.allow_password_change=True --port=${JUPYTER_PORT}>/dev/null 2>&1 &"
           scp -o "StrictHostKeyChecking=no" ./auto-git.sh ciuser@$DOCKERHOST:./
           PROJECT_REPO_DIR=`basename "${PROJECT_REPO}" | cut -d'.' -f1`
@@ -76,7 +76,7 @@ jobs:
                             cd "${PROJECT_REPO_DIR}"
                             ../auto-git.sh checkout "${BRANCH_NAME}"
                             cd ..
-                            "
+			    "
           else
               print "GET_REPOSITORY_USERNAME_SECRET_ID or GET_REPOSITORY_PASSWORD_SECRET_ID is not provided. Will use PROJECT_REPO directly to clone repository"
               sh 'ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "git clone $PROJECT_REPO"'
@@ -102,7 +102,7 @@ jobs:
 
                         sudo curl https://packages.microsoft.com/config/rhel/7/prod.repo | sudo tee /etc/yum.repos.d/microsoft.repo
                         sudo ACCEPT_EULA=Y yum install -y msodbcsql17
-					"
+			"
           ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "cd ${PROJECT_REPO_DIR}; if [ -f requirements.txt ]; then pip install --force-reinstall -r requirements.txt; fi"
           
           
