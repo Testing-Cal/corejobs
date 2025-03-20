@@ -103,6 +103,6 @@ jobs:
                         sudo curl https://packages.microsoft.com/config/rhel/7/prod.repo | sudo tee /etc/yum.repos.d/microsoft.repo
                         sudo ACCEPT_EULA=Y yum install -y msodbcsql17
 					"
-          ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "cd \"${PROJECT_REPO_DIR}\"; if [ -f requirements.txt ]; then pip install --force-reinstall -r requirements.txt; fi"
+          ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "cd ${PROJECT_REPO_DIR}; if [ -f requirements.txt ]; then pip install --force-reinstall -r requirements.txt; fi"
           
           
