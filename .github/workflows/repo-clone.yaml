@@ -1,5 +1,4 @@
-name: setup jupyterlab
-
+name: clone repo
 on: [workflow_dispatch]
 
 jobs:
