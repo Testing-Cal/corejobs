@@ -1,0 +1,114 @@
+name: setup jupyterlab
+
+on: [workflow_dispatch]
+
+jobs:
+  deploy:
+    runs-on: ec2-deploy
+    environment:
+      name: 'dev'
+    env:
+      HELM_IMAGE_VERSION: "alpine/helm:3.8.1" #https://hub.docker.com/r/alpine/helm/tags
+      OC_IMAGE_VERSION: "quay.io/openshift/origin-cli:4.9.0" #https://quay.io/repository/openshift/origin-cli?tab=tags
+
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+          
+      - name: Initialization
+        run: |
+          sudo apt install yq -y 
+          JSON_STRING='${{ vars.CLONE_REPO_JOB_VARS }}'
+         
+         
+          echo "DOCKERHOST=$(echo "$JSON_STRING" | jq -r '.general.dockerHostIP')" >> "$GITHUB_ENV"
+          #echo "BUILD_TAG=${{ github.run_number }}"  >> "$GITHUB_ENV"
+          
+          echo "PROJECT_REPO=$(echo "$JSON_STRING" | jq -r '.general.projectRepo')" >> "$GITHUB_ENV"
+          echo "TECH_STACK=$(echo "$JSON_STRING" | jq -r '.general.techStack')"  >> "$GITHUB_ENV"
+          echo "SRC_BRANCH_NAME=$(echo "$JSON_STRING" | jq -r '.general.srcBranchName')"  >> "$GITHUB_ENV"
+          echo "GET_REPOSITORY_USERNAME_SECRET_ID=$(echo "$JSON_STRING" | jq -r '.general.gitRepoUsernameSecretId')"  >> "$GITHUB_ENV"
+          echo "GET_REPOSITORY_PASSWORD_SECRET_ID=$(echo "$JSON_STRING" | jq -r '.general.gitRepoPasswordSecretId')"  >> "$GITHUB_ENV"
+          echo "BRANCH_NAME=$(echo "$JSON_STRING" | jq -r '.general.branchName')"  >> "$GITHUB_ENV"
+          echo "REPO_USER=$(echo "$JSON_STRING" | jq -r '.general.repoUser')"  >> "$GITHUB_ENV"
+          
+      - name: Setup Jupyterlab
+        run: |
+          
+          if [[ $TECH_STACK == 'python' ]]; then
+          
+              scp -o "StrictHostKeyChecking=no" ./auto-git.sh ciuser@$DOCKERHOST:./
+              PROJECT_REPO_DIR=`basename "${PROJECT_REPO}" | cut -d'.' -f1`
+              if [[ $GET_REPOSITORY_USERNAME_SECRET_ID != 'null' && $GET_REPOSITORY_PASSWORD_SECRET_ID != 'null' ]]; then
+              
+                ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
+                                sudo yum install expect -y
+                                export PROJECT_REPO='${PROJECT_REPO}'
+                                export GIT_REPOSITORY_USERNAME='${{ secrets[env.gitRepoUsernameSecretId] }}'
+                                export GIT_REPOSITORY_TOKEN='${{ secrets[env.gitRepoPasswordSecretId] }}'
+                                rm -rf ${PROJECT_REPO_DIR}  
+                                chmod +x ./auto-git.sh
+                                cd "${PROJECT_REPO_DIR}"
+                                ../auto-git.sh pull origin '${BRANCH_NAME}'
+                                cd ..
+    			      "
+                if [[ $SRC_BRANCH_NAME != null && $SRC_BRANCH_NAME != '' ]]; then
+                    print "Stage Promotion: copying files from ${env.SRC_BRANCH_NAME} branch to ${env.BRANCH_NAME} branch"
+                    ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
+                        export PROJECT_REPO_DIR='${PROJECT_REPO_DIR}'
+                        export GIT_REPOSITORY_USERNAME='${GIT_REPOSITORY_USERNAME}'
+                        export GIT_REPOSITORY_TOKEN='${GIT_REPOSITORY_TOKEN}'
+                        cd '${PROJECT_REPO_DIR}'
+                        ../auto-git.sh switch '${BRANCH_NAME}'
+                        ../auto-git.sh pull origin '${SRC_BRANCH_NAME}'
+                        ../auto-git.sh status
+                        ../auto-git.sh config --global user.email '${REPO_USER}' user.name '${REPO_USER}'
+                        ../auto-git.sh push origin '${BRANCH_NAME}'
+                        cd ..
+                    "
+
+                fi
+             
+              else
+                  print "GET_REPOSITORY_USERNAME_SECRET_ID or GET_REPOSITORY_PASSWORD_SECRET_ID is not provided. Will use PROJECT_REPO directly to clone repository"
+                  ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "git clone $PROJECT_REPO"
+              fi
+          elif [[$TECH_STACK == 'spark' ]]; then 
+              print "EC2 Clone for Spark"
+              ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST 'sudo git -C /home/ciuser/$PROJECT_NAME/ pull $PROJECT_REPO'
+              ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST 'sudo chmod -R 777 /home/ciuser/$PROJECT_NAME'
+
+          else
+              print "EC2 Clone for RStudio"
+              ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
+                            rm -rf /tmp/lazsaproject
+                        "
+                        if [[ $GET_REPOSITORY_USERNAME_SECRET_ID != 'null' && $GET_REPOSITORY_PASSWORD_SECRET_ID != 'null' ]]; then 
+                            print "GIT_REPOSITORY_USERNAME_CREDENTIALS_ID is provided. Will use it to pull repository"
+                            scp -o "StrictHostKeyChecking=no" ./auto-git.sh ciuser@$DOCKERHOST:./
+                            ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
+                                    sudo yum install expect -y
+                                    export GIT_REPOSITORY_USERNAME='${GIT_REPOSITORY_USERNAME}'
+                                    export GIT_REPOSITORY_TOKEN='${GIT_REPOSITORY_TOKEN}'
+                                    chmod +x ./auto-git.sh
+                                    ./auto-git.sh clone ${PROJECT_REPO} /tmp/lazsaproject
+                                "
+                            
+                        else
+                            print "GET_REPOSITORY_USERNAME_SECRET_ID or GET_REPOSITORY_PASSWORD_SECRET_ID is not provided. Will use PROJECT_REPO directly to clone repository"
+                            ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "git clone $PROJECT_REPO /tmp/lazsaproject"
+                        
+                        fi
+
+                        ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
+                        sudo rm -rf /etc/rstudio/connections/
+                        sudo mkdir -p /etc/rstudio/connections/
+                        sudo chmod -R 777 /etc/rstudio
+                        sudo mv /tmp/lazsaproject/*/* /etc/rstudio/connections/
+                        sudo rm -r /etc/rstudio/connections/ds-* > /dev/null 2>&1
+                        echo done
+                        "
+
+          fi
+          
