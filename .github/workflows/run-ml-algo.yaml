@@ -1,0 +1,58 @@
+name: run ml algo
+
+on: [workflow_dispatch]
+
+jobs:
+  deploy:
+    runs-on: ec2-deploy
+    environment:
+      name: 'dev'
+    env:
+      HELM_IMAGE_VERSION: "alpine/helm:3.8.1" #https://hub.docker.com/r/alpine/helm/tags
+      OC_IMAGE_VERSION: "quay.io/openshift/origin-cli:4.9.0" #https://quay.io/repository/openshift/origin-cli?tab=tags
+
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+          
+      - name: Initialization
+        run: |
+          sudo apt install yq -y 
+          JSON_STRING='${{ vars.RUN_ALGO_JOB_VARS }}'
+         
+         
+          echo "DOCKERHOST=$(echo "$JSON_STRING" | jq -r '.general.dockerHostIP')" >> "$GITHUB_ENV"
+          #echo "BUILD_TAG=${{ github.run_number }}"  >> "$GITHUB_ENV"
+          
+          echo "CREDENTIAL_SECRET_ID=$(echo "$JSON_STRING" | jq -r '.general.credentialSecretId')" >> "$GITHUB_ENV"
+          echo "DIRECTORY=$(echo "$JSON_STRING" | jq -r '.general.directory')"  >> "$GITHUB_ENV"
+         
+          
+          echo "NOTEBOOKS=$(echo "$JSON_STRING" | jq -r '.general.notebooks')"  >> "$GITHUB_ENV"
+          echo "APPSERVER_PORT=$(echo "$JSON_STRING" | jq -r '.general.appServerPort')"  >> "$GITHUB_ENV"
+          
+      - name: run algo
+        run: |
+          if [[ $CREDENTIAL_SECRET_ID != 'null' && $CREDENTIAL_SECRET_ID != '' ]]; then
+              set +x; echo "${{ secrets[env.CREDENTIAL_SECRET_ID] }}" > /tmp/cred.dat; set -x
+              scp -o "StrictHostKeyChecking=no" addcredentials.sh ciuser@$DOCKERHOST:/opt/addcredentials.sh
+              scp -o "StrictHostKeyChecking=no" loadcredentials.sh ciuser@$DOCKERHOST:/opt/
+              scp -o "StrictHostKeyChecking=no" restart-jupyter-with-creds.sh ciuser@$DOCKERHOST:/opt/
+              scp -o "StrictHostKeyChecking=no" /tmp/cred.dat ciuser@$DOCKERHOST:/tmp/cred.dat
+              ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "/bin/bash /opt/addcredentials.sh /tmp/cred.dat"
+              ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "/bin/bash /opt/restart-jupyter-with-creds.sh"
+          else
+              print "CREDENTIALS are not provided."
+          fi
+
+          scp -o "StrictHostKeyChecking=no" run_ml_algorithm.sh ciuser@$DOCKERHOST:/home/ciuser
+          scp -o "StrictHostKeyChecking=no" terminate_algorithm.sh ciuser@$DOCKERHOST:/home/ciuser
+          sh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST bash "
+                            source /opt/loadcredentials.sh
+                            export DOCKERHOST="${DOCKERHOST}"
+                            export DIRECTORY="${DIRECTORY}"
+                            export NOTEBOOKS='"${NOTEBOOKS}"'
+                            export APPSERVER_PORT="${APPSERVER_PORT}"
+                            sh run_ml_algorithm.sh
+                        "
