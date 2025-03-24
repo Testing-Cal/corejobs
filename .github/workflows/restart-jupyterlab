@@ -35,5 +35,5 @@ jobs:
               ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "lsof -t -i tcp:${SERVICE_PORT} | xargs kill -9 || true "
               ssh -n -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "nohup jupyter lab --ip=* --NotebookApp.token=${{ secrets[env.TOKEN] }} --NotebookApp.base_url=${CONTEXT_PATH} --NotebookApp.allow_password_change=True --ServerApp.allow_password_change=True --port=${JUPYTER_PORT}>/dev/null 2>&1 &"
           else
-              error 'TOKEN not provided.'
+              echo 'TOKEN not provided.'
           fi
