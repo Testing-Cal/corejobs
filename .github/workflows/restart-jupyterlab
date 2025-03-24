@@ -1,0 +1,39 @@
+name: restart jupyterlab
+
+on: [workflow_dispatch]
+
+jobs:
+  deploy:
+    runs-on: ec2-deploy
+    environment:
+      name: 'dev'
+    env:
+      HELM_IMAGE_VERSION: "alpine/helm:3.8.1" #https://hub.docker.com/r/alpine/helm/tags
+      OC_IMAGE_VERSION: "quay.io/openshift/origin-cli:4.9.0" #https://quay.io/repository/openshift/origin-cli?tab=tags
+
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+          
+      - name: Initialization
+        run: |
+          sudo apt install yq -y 
+          JSON_STRING='${{ vars.JUPYTER_RESTART_JOB_VARS }}'
+
+          echo "DOCKERHOST=$(echo "$JSON_STRING" | jq -r '.general.dockerHostIP')" >> "$GITHUB_ENV"
+          #echo "BUILD_TAG=${{ github.run_number }}"  >> "$GITHUB_ENV"
+
+          echo "TOKEN=$(echo "$JSON_STRING" | jq -r '.general.jupyTokenSecretId')"  >> "$GITHUB_ENV"
+          echo "CONTEXT_PATH=$(echo "$JSON_STRING" | jq -r '.general.contextPath')"  >> "$GITHUB_ENV"
+    
+          echo "JUPYTER_PORT=$(echo "$JSON_STRING" | jq -r '.general.branchName')"  >> "$GITHUB_ENV"
+          
+      - name: Setup Jupyterlab
+        run: |
+          if [[ ${{ secrets[env.TOKEN] }} != '' && ${{ secrets[env.TOKEN] }} != 'null' ]]; then 
+              ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "lsof -t -i tcp:${SERVICE_PORT} | xargs kill -9 || true "
+              ssh -n -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "nohup jupyter lab --ip=* --NotebookApp.token=${{ secrets[env.TOKEN] }} --NotebookApp.base_url=${CONTEXT_PATH} --NotebookApp.allow_password_change=True --ServerApp.allow_password_change=True --port=${JUPYTER_PORT}>/dev/null 2>&1 &"
+          else
+              error 'TOKEN not provided.'
+          fi
