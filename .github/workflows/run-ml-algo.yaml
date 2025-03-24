@@ -56,3 +56,11 @@ jobs:
                             export APPSERVER_PORT="${APPSERVER_PORT}"
                             sh run_ml_algorithm.sh
                         "
+      - name: terminate algo
+        if: cancelled()
+        run: |
+            ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST bash "
+                    export NOTEBOOKS='"${NOTEBOOKS}"'
+                    sh terminate_algorithm.sh
+                "
+
