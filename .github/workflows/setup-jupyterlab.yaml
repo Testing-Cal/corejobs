@@ -35,7 +35,7 @@ jobs:
           
       - name: Setup Jupyterlab
         run: |
-          sh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
+          ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
                         curl -k -O https://pkg.jenkins.io/redhat-stable/jenkins.io.key
                         sudo rpm --import jenkins.io.key
                         #sudo chmod -R 777 /usr/local
