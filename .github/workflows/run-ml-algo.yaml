@@ -48,7 +48,7 @@ jobs:
 
           scp -o "StrictHostKeyChecking=no" run_ml_algorithm.sh ciuser@$DOCKERHOST:/home/ciuser
           scp -o "StrictHostKeyChecking=no" terminate_algorithm.sh ciuser@$DOCKERHOST:/home/ciuser
-          sh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST bash "
+          ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST bash "
                             source /opt/loadcredentials.sh
                             export DOCKERHOST="${DOCKERHOST}"
                             export DIRECTORY="${DIRECTORY}"
