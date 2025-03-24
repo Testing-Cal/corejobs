@@ -50,8 +50,7 @@ jobs:
                                 chmod +x ./auto-git.sh
                                 cd "${PROJECT_REPO_DIR}"
                                 ../auto-git.sh pull origin '${BRANCH_NAME}'
-                                cd ..
-    			      "
+                                cd .."
                 if [[ $SRC_BRANCH_NAME != null && $SRC_BRANCH_NAME != '' ]]; then
                     print "Stage Promotion: copying files from ${env.SRC_BRANCH_NAME} branch to ${env.BRANCH_NAME} branch"
                     ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "
