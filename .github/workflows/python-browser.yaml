@@ -58,12 +58,12 @@ jobs:
       #   run: |
       #     docker build -t "$REGISTRY_URL:$BUILD_TAG" -t "$REGISTRY_URL:latest" .
       
-      # - name: Setup JFrog CLI
-      #   if: env.CONTAINER_SCAN_TYPE == 'XRAY'
-      #   uses: jfrog/setup-jfrog-cli@v4
-      #   env:
-      #     JF_URL: "https://${{ env.DOCKER_LOGIN_URL }}"
-      #     JF_ACCESS_TOKEN: ${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}
+      - name: Setup JFrog CLI
+        if: env.CONTAINER_SCAN_TYPE == 'XRAY'
+        uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: "https://${{ env.DOCKER_LOGIN_URL }}"
+          JF_ACCESS_TOKEN: ${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }}
 
       - name: Container Image Scan
         if: env.CONTAINER_SCAN_TYPE == 'XRAY'
@@ -84,6 +84,36 @@ jobs:
           
           docker push "$REGISTRY_URL:$BUILD_TAG"
           docker push "$REGISTRY_URL:latest"
+
+      - name: Artifact Promotion 
+        if: env.ACTION == 'PROMOTE'
+        run: | 
+          if [[ $ARTIFACTORY == "ECR" ]]
+          then
+            ECR_REGION=$(echo "$REGISTRY_URL" | cut -d'.' -f4)
+            set +x 
+            AWS_ACCESS_KEY_ID=${{ secrets[env.ARTIFACTORY_USER_SECRET] }} AWS_SECRET_ACCESS_KEY=${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }} aws ecr get-login-password --region "$ECR_REGION" | docker login --username AWS --password-stdin $DOCKER_LOGIN_URL 
+            set -x
+          else
+            docker login -u ${{ secrets[env.ARTIFACTORY_USER_SECRET] }} -p ${{ secrets[env.ARTIFACTORY_PASSWORD_SECRET] }} "$DOCKER_LOGIN_URL"
+          fi
+          PROMOTE_SOURCE_LOGIN_URL=$(echo "$PROMOTE_SOURCE" | cut -d'/' -f1)
+          if [[ $PROMOTE_SOURCE_ARTIFACTORY_TYPE == "ECR" ]]
+          then
+            REGION=$(echo "$PROMOTE_SOURCE" | cut -d'.' -f4)
+            PROMOTE_SOURCE_ECR_REGION=$(echo "$PROMOTE_SOURCE" | cut -d'.' -f4)
+            set +x 
+            AWS_ACCESS_KEY_ID=${{ secrets[env.PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET] }} AWS_SECRET_ACCESS_KEY=${{ secrets[env.PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET] }} aws ecr get-login-password --region "$PROMOTE_SOURCE_ECR_REGION" | docker login --username AWS --password-stdin $PROMOTE_SOURCE_LOGIN_URL 
+            set -x
+          else
+            docker login -u ${{ secrets[env.PROMOTE_SOURCE_ARTIFACTORY_USER_SECRET] }} -p ${{ secrets[env.PROMOTE_SOURCE_ARTIFACTORY_PASSWORD_SECRET] }} "$PROMOTE_SOURCE_LOGIN_URL"
+          fi
+
+          docker pull $PROMOTE_SOURCE
+          docker image tag $PROMOTE_SOURCE $REGISTRY_URL:$PROMOTE_TAG
+          docker push $REGISTRY_URL:$PROMOTE_TAG
+          echo "BUILD_TAG=$PROMOTE_TAG"  >> "$GITHUB_ENV"
+
 
           
       
