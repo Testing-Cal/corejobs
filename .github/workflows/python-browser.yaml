@@ -161,8 +161,8 @@ jobs:
       - name: Destroy
         if: env.ACTION == 'DESTROY'
         run: | 
-         docker run --rm  --user root -v "$HOME/.kube/config":"/.kube/config" -e KUBECONFIG="/.kube/config" -v "$GITHUB_WORKSPACE":/apps -w /apps $HELM_IMAGE_VERSION uninstall "$HELM_RELEASE_NAME" -n "$KUBE_NAMESPACE"  
-
+         ssh -o "StrictHostKeyChecking=no" ciuser@$DOCKERHOST "docker stop "$SERVICE_NAME" || true && docker rm "$SERVICE_NAME" || true"
+         
       - name: Push to collector
         if: always()
         run: |
